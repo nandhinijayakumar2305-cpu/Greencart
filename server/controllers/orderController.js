@@ -115,46 +115,75 @@ export const stripeWebhooks = async (req, res)=>{
             process.env.STRIPE_WEBHOOK_SECRET
         );
     } catch (error) {
+        console.error("Webhook signature verification failed:", error.message);
         return res.status(400).send(`Webhook Error: ${error.message}`)
     }
 
-    // Handle the event
-    switch (event.type) {
-        case "payment_intent.succeeded":{
-            const paymentIntent = event.data.object;
-            const paymentIntentId = paymentIntent.id;
+    // Wrap all business logic in try/catch so unexpected errors are
+    // logged (visible in Vercel Runtime Logs) instead of crashing
+    // the function with an opaque 500.
+    try {
+        switch (event.type) {
+            case "payment_intent.succeeded": {
+                const paymentIntent = event.data.object;
+                const paymentIntentId = paymentIntent.id;
 
-            // Getting Session Metadata
-            const session = await stripeInstance.checkout.sessions.list({
-                payment_intent: paymentIntentId,
-            });
-            const { orderId, userId } = session.data[0].metadata;
-            // Mark Payment as Paid
-            await Order.findByIdAndUpdate(orderId,{isPaid: true})
-            // Clear user cart
-            await User.findByIdAndUpdate(userId, {cartItems:{}});
-            break;
+                // Getting Session Metadata
+                const session = await stripeInstance.checkout.sessions.list({
+                    payment_intent: paymentIntentId,
+                });
+
+                if (!session.data || session.data.length === 0) {
+                    console.error("No checkout session found for payment_intent:", paymentIntentId);
+                    break;
+                }
+
+                const { orderId, userId } = session.data[0].metadata;
+
+                if (!orderId) {
+                    console.error("No orderId in session metadata for payment_intent:", paymentIntentId);
+                    break;
+                }
+
+                // Mark Payment as Paid
+                await Order.findByIdAndUpdate(orderId, { isPaid: true })
+                // Clear user cart
+                if (userId) {
+                    await User.findByIdAndUpdate(userId, { cartItems: {} });
+                }
+                break;
+            }
+
+            case "payment_intent.payment_failed": {
+                const paymentIntent = event.data.object;
+                const paymentIntentId = paymentIntent.id;
+
+                const session = await stripeInstance.checkout.sessions.list({
+                    payment_intent: paymentIntentId,
+                });
+
+                if (!session.data || session.data.length === 0) {
+                    console.error("No checkout session found for payment_intent:", paymentIntentId);
+                    break;
+                }
+
+                const { orderId } = session.data[0].metadata;
+                if (orderId) {
+                    await Order.findByIdAndDelete(orderId);
+                }
+                break;
+            }
+
+            default:
+                console.log(`Unhandled event type ${event.type}`)
+                break;
         }
 
-        case "payment_intent.payment_failed":{
-            const paymentIntent = event.data.object;
-            const paymentIntentId = paymentIntent.id;
-
-            // Getting Session Metadata
-            const session = await stripeInstance.checkout.sessions.list({
-                payment_intent: paymentIntentId,
-            });
-            const { orderId } = session.data[0].metadata;
-            // Delete the unpaid/failed order
-            await Order.findByIdAndDelete(orderId);
-            break;
-        }
-
-        default:
-            console.error(`Unhandled event type ${event.type}`)
-            break;
+        return res.json({received: true});
+    } catch (error) {
+        console.error("Error handling webhook event:", error);
+        return res.status(500).json({success: false, message: error.message});
     }
-    res.json({received: true});
 }
 
 
