@@ -18,6 +18,13 @@ const MyOrders = () => {
         }
     }
 
+    // Map raw paymentType value to a readable label
+    const getPaymentLabel = (paymentType) => {
+        if (paymentType === "COD") return "Cash on Delivery"
+        if (paymentType === "Online") return "Online Payment"
+        return paymentType
+    }
+
     useEffect(() => {
         if(user){
         fetchMyOrders()
@@ -35,7 +42,7 @@ const MyOrders = () => {
                 <div key={index} className='border border-gray-300 rounded-lg mb-10 p-4 py-5 max-w-4xl'>
                     <p className='flex justify-between md:items-center text-gray-400 md:font-medium max-md:flex-col'>
                         <span>OrderId : {order._id}</span>
-                        <span>Payment : {order.paymentType}</span>
+                        <span>Payment : {getPaymentLabel(order.paymentType)}</span>
                         <span>Total Amount : {currency}{order.amount}</span>
                     </p>
                     {order.items.map((item, index) => (
