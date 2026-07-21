@@ -22,7 +22,10 @@ await connectCloudinary()
 //Allow multiple origins
 const allowedOrigins = ['http://localhost:5173']
 
-app.post('/stripe', express.raw({type: 'applocation/json'}), stripeWebhooks)
+// IMPORTANT: Stripe webhook route must come BEFORE express.json(),
+// and must use express.raw() with the correct MIME type so Stripe
+// can verify the webhook signature using the raw request body.
+app.post('/stripe', express.raw({type: 'application/json'}), stripeWebhooks)
 
 //Middleware configuration
 app.use(express.json());
