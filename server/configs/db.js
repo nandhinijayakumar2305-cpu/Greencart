@@ -1,12 +1,8 @@
 import mongoose from "mongoose";
 
-// In serverless environments (like Vercel), the module can be reused
-// across invocations ("warm" instances) or reloaded fresh ("cold" starts).
-// We cache the connection promise so we don't try to reconnect on every
-// request, and so requests wait for an in-progress connection instead of
-// firing queries before the connection is ready (which causes Mongoose's
-// "buffering timed out" error).
-
+// Cache the connection across serverless invocations so warm instances
+// reuse it, and concurrent requests on a cold instance wait for the
+// same in-progress connection instead of each starting a new one.
 let cached = global.mongooseConnection;
 
 if (!cached) {
@@ -15,7 +11,6 @@ if (!cached) {
 
 mongoose.connection.on('connected', () => console.log("Database Connected"));
 mongoose.connection.on('error', (err) => console.error("Database connection error:", err.message));
-mongoose.connection.on('disconnected', () => console.log("Database disconnected"));
 
 const connectDB = async () => {
     if (cached.conn) {
@@ -25,10 +20,7 @@ const connectDB = async () => {
     if (!cached.promise) {
         const uri = `${process.env.MONGODB_URI}/greencart`;
         cached.promise = mongoose.connect(uri, {
-            bufferCommands: false, // fail fast instead of buffering silently
-            serverSelectionTimeoutMS: 10000,
-        }).then((mongooseInstance) => {
-            return mongooseInstance;
+            serverSelectionTimeoutMS: 15000,
         });
     }
 

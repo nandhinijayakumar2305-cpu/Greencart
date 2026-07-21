@@ -2,6 +2,7 @@ import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import stripe from "stripe"
 import User from "../models/User.js"
+import connectDB from "../configs/db.js";
 
 // Place Order COD : /api/order/cod
 export const placeOrderCOD = async (req, res)=>{
@@ -119,10 +120,14 @@ export const stripeWebhooks = async (req, res)=>{
         return res.status(400).send(`Webhook Error: ${error.message}`)
     }
 
-    // Wrap all business logic in try/catch so unexpected errors are
-    // logged (visible in Vercel Runtime Logs) instead of crashing
-    // the function with an opaque 500.
     try {
+        // IMPORTANT: this serverless function invocation may be a fresh
+        // instance in a different region than the one that handled the
+        // original checkout request, so we cannot assume the DB is
+        // already connected. Explicitly ensure the connection is ready
+        // before running any queries below.
+        await connectDB();
+
         switch (event.type) {
             case "payment_intent.succeeded": {
                 const paymentIntent = event.data.object;
