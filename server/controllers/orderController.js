@@ -1,4 +1,3 @@
-import { request, response } from "express";
 import Order from "../models/Order.js";
 import Product from "../models/Product.js";
 import stripe from "stripe"
@@ -102,21 +101,21 @@ export const placeOrderStripe = async (req, res)=>{
 }
 
 // Stripe Webhooks to Verify Payments Action : /stripe
-export const stripeWebhooks = async (req,re)=>{
+export const stripeWebhooks = async (req, res)=>{
     // Stripe Gateway Initialize
     const stripeInstance  = new stripe(process.env.STRIPE_SECRET_KEY);
 
-    const sig = request.headers["stripe-signature"];
+    const sig = req.headers["stripe-signature"];
     let event;
 
     try {
         event = stripeInstance.webhooks.constructEvent(
-            request.body,
+            req.body,
             sig,
             process.env.STRIPE_WEBHOOK_SECRET
         );
     } catch (error) {
-        response.status(400).send(`Webhook Error: ${error.message}`)
+        return res.status(400).send(`Webhook Error: ${error.message}`)
     }
 
     // Handle the event
@@ -136,7 +135,8 @@ export const stripeWebhooks = async (req,re)=>{
             await User.findByIdAndUpdate(userId, {cartItems:{}});
             break;
         }
-           case "payment_intent.succeeded":{
+
+        case "payment_intent.payment_failed":{
             const paymentIntent = event.data.object;
             const paymentIntentId = paymentIntent.id;
 
@@ -145,15 +145,16 @@ export const stripeWebhooks = async (req,re)=>{
                 payment_intent: paymentIntentId,
             });
             const { orderId } = session.data[0].metadata;
+            // Delete the unpaid/failed order
             await Order.findByIdAndDelete(orderId);
             break;
-           }
+        }
+
         default:
             console.error(`Unhandled event type ${event.type}`)
             break;
     }
-    response.json({received: true});
-
+    res.json({received: true});
 }
 
 
