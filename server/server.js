@@ -20,7 +20,10 @@ await connectDB()
 await connectCloudinary()
 
 //Allow multiple origins
-const allowedOrigins = ['http://localhost:5173']
+const allowedOrigins = [
+    'http://localhost:5173',
+    'https://greencart-alpha-opal.vercel.app'
+]
 
 // IMPORTANT: Stripe webhook route must come BEFORE express.json(),
 // and must use express.raw() with the correct MIME type so Stripe
